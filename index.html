@@ -85,6 +85,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .trade-journal tr:last-child td{border-bottom:none}
 .empty-state{text-align:center;padding:2rem;color:#888;font-size:14px}
 .empty-icon{font-size:32px;margin-bottom:8px}
+.rendite-filter.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 @media(max-width:768px){
   .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
   .header{padding:0 1rem}
@@ -262,8 +263,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- JOURNAL -->
   <div id="tab-journal" class="panel">
+
+    <!-- Portfolio Kapital -->
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Portfolio-Kapital</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="font-size:13px;color:#555">Gesamtkapital im Portfolio (für Renditeberechnung):</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px;color:#888">€</span>
+          <input type="number" id="portfolioCapital" placeholder="z.B. 20000" step="100" style="width:140px;padding:7px 10px;font-size:14px;border:1px solid #ddd;border-radius:7px" onchange="savePortfolioCapital()" />
+          <button class="btn btn-sm" onclick="savePortfolioCapital()">✓ Speichern</button>
+        </div>
+        <span id="capitalStatus" style="font-size:12px;color:#2e7d32"></span>
+      </div>
+    </div>
+
+    <!-- Rendite Übersicht -->
+    <div id="renditeCard" style="display:none;margin-bottom:1rem">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <div class="card-title" style="margin-bottom:0">Gesamtrendite</div>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-sm rendite-filter active" onclick="setRenditeFilter('1W',this)">1W</button>
+            <button class="btn btn-sm rendite-filter" onclick="setRenditeFilter('1M',this)">1M</button>
+            <button class="btn btn-sm rendite-filter" onclick="setRenditeFilter('YTD',this)">YTD</button>
+            <button class="btn btn-sm rendite-filter" onclick="setRenditeFilter('1Y',this)">1J</button>
+            <button class="btn btn-sm rendite-filter" onclick="setRenditeFilter('MAX',this)">Max</button>
+          </div>
+        </div>
+        <div id="renditeStats"></div>
+      </div>
+    </div>
+
+    <!-- Trade erfassen / bearbeiten -->
     <div class="card">
-      <div class="card-title">Trade Journal — manuell erfassen</div>
+      <div class="card-title" id="journalFormTitle">Neuen Trade erfassen</div>
+      <input type="hidden" id="j-edit-id" value="" />
       <div class="grid-2">
         <div class="field">
           <label>Ticker</label>
@@ -278,8 +313,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <input type="number" id="j-entry" placeholder="z.B. 85.20" step="0.01" />
         </div>
         <div class="field">
-          <label>Ausstiegspreis ($)</label>
-          <input type="number" id="j-exit" placeholder="z.B. 92.50 (leer = noch offen)" step="0.01" />
+          <label>Ausstiegspreis ($) — leer = noch offen</label>
+          <input type="number" id="j-exit" placeholder="z.B. 92.50" step="0.01" />
         </div>
         <div class="field">
           <label>Stop-Loss ($)</label>
@@ -312,7 +347,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <label>Notizen / Lektion</label>
         <textarea id="j-notes" placeholder="z.B. Situation 1 perfekt erkannt, aber zu früh verkauft..."></textarea>
       </div>
-      <button class="btn btn-dark" onclick="saveJournal()">📓 Trade speichern</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-dark" onclick="saveJournal()" id="journalSaveBtn">📓 Trade speichern</button>
+        <button class="btn" id="journalCancelBtn" onclick="cancelEdit()" style="display:none">✕ Abbrechen</button>
+      </div>
     </div>
 
     <div id="journalStats" style="margin-bottom:1rem"></div>
@@ -690,9 +728,91 @@ function clearChat() {
 }
 
 // JOURNAL
+let renditeFilter = '1W';
+
+function savePortfolioCapital() {
+  const val = document.getElementById('portfolioCapital').value;
+  if(val) {
+    localStorage.setItem('portfolioCapital', val);
+    document.getElementById('capitalStatus').textContent = `✓ €${parseFloat(val).toLocaleString('de-CH')} gespeichert`;
+    renderJournal();
+  }
+}
+
+function setRenditeFilter(f, btn) {
+  renditeFilter = f;
+  document.querySelectorAll('.rendite-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRendite();
+}
+
+function getFilteredTrades(filter) {
+  const now = new Date();
+  return journalData.filter(j => {
+    if(!j.exit || j.result === 'Offen') return false;
+    if(filter === 'MAX') return true;
+    const d = new Date(j.date);
+    if(filter === '1W') return (now - d) <= 7*24*60*60*1000;
+    if(filter === '1M') return (now - d) <= 30*24*60*60*1000;
+    if(filter === 'YTD') return d.getFullYear() === now.getFullYear();
+    if(filter === '1Y') return (now - d) <= 365*24*60*60*1000;
+    return true;
+  });
+}
+
+function renderRendite() {
+  const capital = parseFloat(localStorage.getItem('portfolioCapital') || '0');
+  const filtered = getFilteredTrades(renditeFilter);
+  if(!filtered.length) {
+    document.getElementById('renditeStats').innerHTML = '<div style="color:#888;font-size:13px">Keine abgeschlossenen Trades in diesem Zeitraum.</div>';
+    return;
+  }
+  let totalPnlEur = 0;
+  filtered.forEach(j => {
+    const pos = parseFloat(j.position || 0);
+    const entry = parseFloat(j.entry || 0);
+    const exit = parseFloat(j.exit || 0);
+    if(pos && entry && exit) {
+      const pnlPct = (exit - entry) / entry;
+      totalPnlEur += pos * pnlPct;
+    }
+  });
+  const rendite = capital ? (totalPnlEur / capital * 100) : null;
+  const wins = filtered.filter(j => j.result === 'Gewinn').length;
+  const losses = filtered.filter(j => j.result === 'Verlust' || j.result === 'Stop-Loss').length;
+  const winRate = filtered.length ? (wins / filtered.length * 100).toFixed(0) : 0;
+  const pnlColor = totalPnlEur >= 0 ? '#2e7d32' : '#c62828';
+  const sign = totalPnlEur >= 0 ? '+' : '';
+
+  document.getElementById('renditeStats').innerHTML = `
+    <div class="grid-4">
+      <div class="metric">
+        <div class="metric-label">Gewinn/Verlust (€)</div>
+        <div class="metric-value" style="color:${pnlColor}">${sign}€${Math.abs(totalPnlEur).toFixed(0)}</div>
+        <div class="metric-sub">${filtered.length} Trades</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Rendite auf Portfolio</div>
+        <div class="metric-value" style="color:${pnlColor}">${rendite ? sign+rendite.toFixed(2)+'%' : '—'}</div>
+        <div class="metric-sub">${capital ? '€'+capital.toLocaleString('de-CH') : 'Kapital nicht gesetzt'}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Win Rate</div>
+        <div class="metric-value" style="color:${winRate>=50?'#2e7d32':'#c62828'}">${winRate}%</div>
+        <div class="metric-sub">${wins}G / ${losses}V</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Trades (Zeitraum)</div>
+        <div class="metric-value">${filtered.length}</div>
+        <div class="metric-sub">abgeschlossen</div>
+      </div>
+    </div>`;
+}
+
 function saveJournal() {
+  const editId = document.getElementById('j-edit-id').value;
   const entry = {
-    id: Date.now(),
+    id: editId ? parseInt(editId) : Date.now(),
     ticker: document.getElementById('j-ticker').value.toUpperCase().trim(),
     date: document.getElementById('j-date').value,
     entry: document.getElementById('j-entry').value,
@@ -704,60 +824,122 @@ function saveJournal() {
     notes: document.getElementById('j-notes').value
   };
   if(!entry.ticker) { alert('Bitte Ticker eingeben.'); return; }
-  journalData.unshift(entry);
+  if(editId) {
+    const idx = journalData.findIndex(j => j.id === parseInt(editId));
+    if(idx !== -1) journalData[idx] = entry;
+  } else {
+    journalData.unshift(entry);
+  }
   localStorage.setItem('earningsJournal', JSON.stringify(journalData));
   renderJournal();
+  clearJournalForm();
+  alert(`✅ Trade ${entry.ticker} ${editId ? 'aktualisiert' : 'gespeichert'}.`);
+}
+
+function clearJournalForm() {
   ['j-ticker','j-entry','j-exit','j-stop','j-position','j-notes'].forEach(id => document.getElementById(id).value = '');
-  alert(`✅ Trade ${entry.ticker} gespeichert.`);
+  document.getElementById('j-edit-id').value = '';
+  document.getElementById('j-result').value = '';
+  document.getElementById('journalFormTitle').textContent = 'Neuen Trade erfassen';
+  document.getElementById('journalSaveBtn').textContent = '📓 Trade speichern';
+  document.getElementById('journalCancelBtn').style.display = 'none';
+}
+
+function editJournal(id) {
+  const j = journalData.find(x => x.id === id);
+  if(!j) return;
+  document.getElementById('j-edit-id').value = id;
+  document.getElementById('j-ticker').value = j.ticker;
+  document.getElementById('j-date').value = j.date;
+  document.getElementById('j-entry').value = j.entry;
+  document.getElementById('j-exit').value = j.exit;
+  document.getElementById('j-stop').value = j.stop;
+  document.getElementById('j-position').value = j.position;
+  document.getElementById('j-type').value = j.type;
+  document.getElementById('j-result').value = j.result;
+  document.getElementById('j-notes').value = j.notes;
+  document.getElementById('journalFormTitle').textContent = `Trade bearbeiten — ${j.ticker}`;
+  document.getElementById('journalSaveBtn').textContent = '✓ Änderungen speichern';
+  document.getElementById('journalCancelBtn').style.display = 'inline-flex';
+  document.getElementById('tab-journal').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelEdit() {
+  clearJournalForm();
 }
 
 function deleteJournal(id) {
+  if(!confirm('Trade wirklich löschen?')) return;
   journalData = journalData.filter(j => j.id !== id);
   localStorage.setItem('earningsJournal', JSON.stringify(journalData));
   renderJournal();
 }
 
 function renderJournal() {
+  const capital = parseFloat(localStorage.getItem('portfolioCapital') || '0');
+  if(capital) {
+    document.getElementById('portfolioCapital').value = capital;
+    document.getElementById('capitalStatus').textContent = `✓ €${capital.toLocaleString('de-CH')} gespeichert`;
+  }
+
   const statsEl = document.getElementById('journalStats');
   const listEl = document.getElementById('journalList');
+  const renditeCard = document.getElementById('renditeCard');
+
   if(!journalData.length) {
     statsEl.innerHTML = '';
+    renditeCard.style.display = 'none';
     listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📓</div>Noch keine Trades erfasst.</div>';
     return;
   }
+
+  renditeCard.style.display = 'block';
+  renderRendite();
+
   const closed = journalData.filter(j => j.exit && j.result !== 'Offen');
   const wins = closed.filter(j => j.result === 'Gewinn').length;
   const losses = closed.filter(j => j.result === 'Verlust' || j.result === 'Stop-Loss').length;
   const winRate = closed.length ? (wins / closed.length * 100).toFixed(0) : '—';
+
   statsEl.innerHTML = `<div class="grid-4" style="margin-bottom:1rem">
     <div class="metric"><div class="metric-label">Trades total</div><div class="metric-value">${journalData.length}</div></div>
     <div class="metric"><div class="metric-label">Abgeschlossen</div><div class="metric-value">${closed.length}</div></div>
-    <div class="metric"><div class="metric-label">Win Rate</div><div class="metric-value" style="color:${winRate>50?'#2e7d32':'#c62828'}">${winRate}%</div></div>
-    <div class="metric"><div class="metric-label">Gewinn / Verlust</div><div class="metric-value">${wins} / ${losses}</div></div>
+    <div class="metric"><div class="metric-label">Win Rate (gesamt)</div><div class="metric-value" style="color:${winRate>=50?'#2e7d32':'#c62828'}">${winRate}%</div></div>
+    <div class="metric"><div class="metric-label">Gewinn / Verlust</div><div class="metric-value">${wins} ✅ / ${losses} ❌</div></div>
   </div>`;
 
   const rows = journalData.map(j => {
-    const pnl = j.entry && j.exit ? ((parseFloat(j.exit) - parseFloat(j.entry)) / parseFloat(j.entry) * 100) : null;
-    const pnlStr = pnl ? `<span class="${pnl>0?'diff-positive':'diff-negative'}">${pnl>0?'+':''}${pnl.toFixed(1)}%</span>` : '—';
-    const resultBadge = j.result === 'Gewinn' ? 'badge-green' : j.result === 'Verlust' || j.result === 'Stop-Loss' ? 'badge-red' : 'badge-gray';
+    const entry = parseFloat(j.entry);
+    const exit = parseFloat(j.exit);
+    const pos = parseFloat(j.position);
+    const pnlPct = (j.entry && j.exit) ? ((exit - entry) / entry * 100) : null;
+    const pnlEur = (pnlPct !== null && pos) ? (pos * pnlPct / 100) : null;
+    const pnlPctStr = pnlPct !== null ? `<span class="${pnlPct>=0?'diff-positive':'diff-negative'}">${pnlPct>=0?'+':''}${pnlPct.toFixed(1)}%</span>` : '—';
+    const pnlEurStr = pnlEur !== null ? `<span class="${pnlEur>=0?'diff-positive':'diff-negative'}">${pnlEur>=0?'+':''}€${Math.abs(pnlEur).toFixed(0)}</span>` : '—';
+    const resultBadge = j.result === 'Gewinn' ? 'badge-green' : (j.result === 'Verlust' || j.result === 'Stop-Loss') ? 'badge-red' : 'badge-gray';
     return `<tr>
       <td><strong>${j.ticker}</strong></td>
-      <td>${j.date}</td>
+      <td style="white-space:nowrap">${j.date}</td>
       <td><span class="badge badge-blue">${j.type}</span></td>
       <td>$${j.entry||'—'}</td>
       <td>$${j.exit||'—'}</td>
       <td>$${j.stop||'—'}</td>
-      <td>${pnlStr}</td>
+      <td>${j.position ? '€'+j.position : '—'}</td>
+      <td>${pnlPctStr}</td>
+      <td>${pnlEurStr}</td>
       <td><span class="badge ${resultBadge}">${j.result}</span></td>
-      <td style="font-size:12px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.notes||''}</td>
-      <td><button class="btn btn-sm" onclick="deleteJournal(${j.id})" style="color:#888">✕</button></td>
+      <td style="font-size:12px;color:#888;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.notes||''}">${j.notes||''}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="editJournal(${j.id})" title="Bearbeiten" style="margin-right:4px">✏️</button>
+        <button class="btn btn-sm" onclick="deleteJournal(${j.id})" title="Löschen" style="color:#c62828">✕</button>
+      </td>
     </tr>`;
   }).join('');
 
   listEl.innerHTML = `<div class="card" style="padding:0;overflow:auto">
     <table class="trade-journal">
       <thead><tr>
-        <th>Ticker</th><th>Datum</th><th>Typ</th><th>Einstieg</th><th>Ausstieg</th><th>Stop-Loss</th><th>P&L</th><th>Ergebnis</th><th>Notizen</th><th></th>
+        <th>Ticker</th><th>Datum</th><th>Typ</th><th>Einstieg</th><th>Ausstieg</th><th>Stop</th><th>Position</th><th>P&L %</th><th>P&L €</th><th>Ergebnis</th><th>Notizen</th><th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

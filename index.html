@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earnings Trade Analyzer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh}
+.header{background:#fff;border-bottom:1px solid #e5e5e0;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+.header-title{font-size:16px;font-weight:600}
+.header-sub{font-size:12px;color:#888;margin-top:2px}
+.api-row{display:flex;align-items:center;gap:8px}
+.api-row label{font-size:12px;color:#888}
+.api-row input{padding:5px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;width:220px;background:#f9f9f6}
+.container{max-width:1100px;margin:0 auto;padding:1.5rem}
+.tabs{display:flex;gap:0;margin-bottom:1.5rem;background:#fff;border:1px solid #e5e5e0;border-radius:10px;overflow:hidden}
+.tab{flex:1;padding:10px 16px;font-size:13px;font-weight:500;color:#888;cursor:pointer;border:none;background:transparent;border-right:1px solid #e5e5e0;transition:all 0.15s}
+.tab:last-child{border-right:none}
+.tab.active{background:#1a1a1a;color:#fff}
+.tab:hover:not(.active){background:#f5f5f0;color:#1a1a1a}
+.panel{display:none}.panel.active{display:block}
+.card{background:#fff;border:1px solid #e5e5e0;border-radius:10px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:1rem}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric{background:#f9f9f6;border-radius:8px;padding:12px}
+.metric-label{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em}
+.metric-value{font-size:22px;font-weight:600}
+.metric-sub{font-size:12px;color:#888;margin-top:2px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:#888;margin-bottom:4px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;padding:8px 12px;font-size:14px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#1a1a1a;transition:border 0.15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#1a1a1a}
+.field textarea{resize:vertical;min-height:70px}
+.btn{padding:9px 18px;font-size:13px;font-weight:500;border:1px solid #ddd;border-radius:7px;background:#fff;color:#1a1a1a;cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#f5f5f0;border-color:#bbb}
+.btn-dark{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn-dark:hover{background:#333;border-color:#333}
+.btn-sm{padding:5px 10px;font-size:12px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px}
+.badge-green{background:#e8f5e9;color:#2e7d32}
+.badge-red{background:#ffebee;color:#c62828}
+.badge-amber{background:#fff8e1;color:#e65100}
+.badge-blue{background:#e3f2fd;color:#1565c0}
+.badge-gray{background:#f5f5f0;color:#666}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;flex-shrink:0}
+.dot-green{background:#4caf50}
+.dot-red{background:#f44336}
+.dot-amber{background:#ff9800}
+.screening-table{width:100%;border-collapse:collapse}
+.screening-table th{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.04em;padding:8px 12px;text-align:left;border-bottom:1px solid #e5e5e0}
+.screening-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid #f0f0ec}
+.screening-table tr:last-child td{border-bottom:none}
+.screening-table tr:hover td{background:#f9f9f6}
+.loading{color:#888;font-size:13px;font-style:italic;padding:12px 0}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #ddd;border-top-color:#1a1a1a;border-radius:50%;animation:spin 0.7s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chat-wrap{display:flex;flex-direction:column;height:480px}
+.chat-messages{flex:1;overflow-y:auto;border:1px solid #e5e5e0;border-radius:10px;padding:16px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px;background:#fafaf8}
+.msg{padding:10px 14px;border-radius:10px;font-size:14px;line-height:1.6;max-width:80%}
+.msg-user{background:#1a1a1a;color:#fff;align-self:flex-end;border-radius:10px 10px 3px 10px}
+.msg-ai{background:#fff;border:1px solid #e5e5e0;align-self:flex-start;border-radius:10px 10px 10px 3px}
+.msg-typing{color:#888;font-style:italic}
+.chat-input-row{display:flex;gap:8px}
+.chat-input-row input{flex:1;padding:10px 14px;font-size:14px;border:1px solid #ddd;border-radius:8px;background:#fff}
+.chat-input-row input:focus{outline:none;border-color:#1a1a1a}
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.alert-amber{background:#fff8e1;border:1px solid #ffcc02;color:#e65100}
+.alert-green{background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32}
+.alert-red{background:#ffebee;border:1px solid #ef9a9a;color:#c62828}
+.divider{border:none;border-top:1px solid #e5e5e0;margin:1rem 0}
+.konsens-item{background:#fff;border:1px solid #e5e5e0;border-radius:10px;padding:1rem;margin-bottom:10px}
+.konsens-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.konsens-ticker{font-size:16px;font-weight:600}
+.signal-row{display:flex;align-items:flex-start;gap:8px;margin-top:6px;font-size:13px}
+.vergleich-result{background:#fff;border:1px solid #e5e5e0;border-radius:10px;padding:1.25rem;margin-top:1rem}
+.diff-positive{color:#2e7d32;font-weight:600}
+.diff-negative{color:#c62828;font-weight:600}
+.diff-neutral{color:#888;font-weight:600}
+.trade-journal{width:100%;border-collapse:collapse}
+.trade-journal th{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.04em;padding:8px 12px;text-align:left;border-bottom:1px solid #e5e5e0}
+.trade-journal td{padding:10px 12px;font-size:13px;border-bottom:1px solid #f0f0ec}
+.trade-journal tr:last-child td{border-bottom:none}
+.empty-state{text-align:center;padding:2rem;color:#888;font-size:14px}
+.empty-icon{font-size:32px;margin-bottom:8px}
+@media(max-width:768px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .header{padding:0 1rem}
+  .container{padding:1rem}
+  .tabs{flex-wrap:wrap}
+  .tab{flex:1 1 40%}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">📈 Earnings Trade Analyzer</div>
+    <div class="header-sub">Screening · Konsens · Vergleich · Chat · Journal</div>
+  </div>
+  <div class="api-row">
+    <label>API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-..." onchange="saveApiKey()" />
+    <span id="apiStatus" style="font-size:12px;color:#888"></span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('screening')">🔍 Screening</button>
+    <button class="tab" onclick="switchTab('konsens')">📋 Konsens</button>
+    <button class="tab" onclick="switchTab('vergleich')">⚖️ Vergleich</button>
+    <button class="tab" onclick="switchTab('chat')">💬 Strategie-Chat</button>
+    <button class="tab" onclick="switchTab('journal')">📓 Trade Journal</button>
+  </div>
+
+  <!-- SCREENING -->
+  <div id="tab-screening" class="panel active">
+    <div class="card">
+      <div class="card-title">Bedingung 1 & 2 — Automatisches Screening</div>
+      <div style="font-size:13px;color:#888;margin-bottom:12px">
+        Ticker kommagetrennt eingeben. Die App prüft automatisch KGV (Bedingung 1) und Upside zum Analysten-Ziel (Bedingung 2).
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input type="text" id="tickerInput" placeholder="z.B. KSPI, FOX, CEG, ENB, BAM, ESNT, SONY" style="flex:1;padding:9px 12px;font-size:14px;border:1px solid #ddd;border-radius:7px" onkeydown="if(event.key==='Enter')runScreening()" />
+        <button class="btn btn-dark" onclick="runScreening()">🔍 Screenen</button>
+        <button class="btn" onclick="clearScreening()">✕ Leeren</button>
+      </div>
+      <div style="font-size:12px;color:#888;display:flex;gap:16px">
+        <span><span class="status-dot dot-green"></span>Qualifiziert: fwd KGV &lt;25 + Upside &gt;10%</span>
+        <span><span class="status-dot dot-amber"></span>Grauzone: eine Bedingung fehlt</span>
+        <span><span class="status-dot dot-red"></span>Nicht qualifiziert</span>
+      </div>
+    </div>
+    <div id="screeningResults"></div>
+  </div>
+
+  <!-- KONSENS -->
+  <div id="tab-konsens" class="panel">
+    <div class="card">
+      <div class="card-title">Konsens erfassen</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Ticker</label>
+          <input type="text" id="k-ticker" placeholder="z.B. FOX" style="text-transform:uppercase" />
+        </div>
+        <div class="field">
+          <label>Release-Zeitpunkt</label>
+          <select id="k-timing">
+            <option value="BMO">BMO — Before Market Open (bevorzugt)</option>
+            <option value="AMC">AMC — After Market Close</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>EPS Konsens ($)</label>
+          <input type="number" id="k-eps" placeholder="z.B. 1.04" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Revenue Konsens (Mrd. $)</label>
+          <input type="number" id="k-rev" placeholder="z.B. 3.79" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Release Datum</label>
+          <input type="date" id="k-date" />
+        </div>
+        <div class="field">
+          <label>Sektor</label>
+          <select id="k-sektor">
+            <option value="">— wählen —</option>
+            <option>Technologie</option>
+            <option>Energie</option>
+            <option>Finanzen</option>
+            <option>Konsum</option>
+            <option>Industrie</option>
+            <option>Gesundheit</option>
+            <option>Telekommunikation</option>
+            <option>Versorger</option>
+            <option>Rohstoffe</option>
+            <option>Immobilien</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Wichtigste operative Metrik (worauf achten?)</label>
+        <input type="text" id="k-metrik" placeholder="z.B. Tubi-Wachstum + FOX One Momentum + FY2027 Guidance" />
+      </div>
+      <div class="field">
+        <label>✅ Typ-A Signal — wann ist es ein Kauf?</label>
+        <input type="text" id="k-typa" placeholder="z.B. EPS Miss wegen Super Bowl Basis, Tubi strukturell stark" />
+      </div>
+      <div class="field">
+        <label>❌ Typ-B Signal — wann nicht kaufen?</label>
+        <input type="text" id="k-typb" placeholder="z.B. Tubi strukturell rückläufig oder Cord-Cutting beschleunigt" />
+      </div>
+      <button class="btn btn-dark" onclick="saveKonsens()">💾 Konsens speichern</button>
+    </div>
+    <div id="konsensList"></div>
+  </div>
+
+  <!-- VERGLEICH -->
+  <div id="tab-vergleich" class="panel">
+    <div class="card">
+      <div class="card-title">Tatsächlich vs. Konsens — Analyse</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Ticker auswählen</label>
+          <select id="v-ticker" onchange="loadKonsensForVergleich()">
+            <option value="">— Ticker wählen —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Premarket Reaktion (%)</label>
+          <input type="number" id="v-premarket" placeholder="z.B. -5.4 oder +2.3" step="0.1" />
+        </div>
+        <div class="field">
+          <label>Tatsächlicher EPS ($)</label>
+          <input type="number" id="v-eps" placeholder="z.B. 1.37" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Tatsächlicher Revenue (Mrd. $)</label>
+          <input type="number" id="v-rev" placeholder="z.B. 3.99" step="0.01" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Kontext (buchhalterische Effekte, Call-Details, Guidance etc.)</label>
+        <textarea id="v-kontext" placeholder="z.B. GAAP EPS niedrig wegen Non-operating Verlust -499 Mio. durch Equity-Investments. Adj. EBITDA +11.5% YoY. Tubi stark, Revenue Beat +5.6%."></textarea>
+      </div>
+      <div id="k-preview" style="display:none;margin-bottom:12px;padding:10px 14px;background:#f9f9f6;border-radius:8px;font-size:13px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-dark" onclick="runVergleich()">⚖️ Analysieren</button>
+        <button class="btn" onclick="sendVergleichToChat()">💬 Im Chat besprechen →</button>
+        <button class="btn" onclick="saveToJournal()">📓 In Journal speichern</button>
+      </div>
+    </div>
+    <div id="vergleichResult"></div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="tab-chat" class="panel">
+    <div id="apiWarning" class="alert alert-amber" style="display:none">
+      ⚠️ Kein API Key eingegeben. Bitte oben rechts deinen Anthropic API Key (sk-ant-...) eintragen.
+    </div>
+    <div class="chat-wrap">
+      <div class="chat-messages" id="chatMessages">
+        <div class="msg msg-ai">
+          👋 Hallo! Ich bin dein Earnings Trade Assistent mit der kompletten Strategie.<br><br>
+          Ich kenne: die 3 Bedingungen, Typ-A vs Typ-B, Situation 1 vs 2, Stop-Loss-Regeln, BMO vs AMC — und alle unsere bisherigen Analysen (Tyson, Disney, FOX, KSPI, TRGP, ENB, etc.).<br><br>
+          Stelle mir direkt deine Fragen — z.B. <em>"Ist FOX heute Typ-A?"</em> oder <em>"Was ist der Unterschied zwischen Situation 1 und 2?"</em>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="z.B. Ist das ein Typ-A? Soll ich bei -5% Premarket kaufen?" onkeydown="if(event.key==='Enter')sendChat()" />
+        <button class="btn btn-dark" onclick="sendChat()">Senden →</button>
+        <button class="btn btn-sm" onclick="clearChat()" title="Chat leeren">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOURNAL -->
+  <div id="tab-journal" class="panel">
+    <div class="card">
+      <div class="card-title">Trade Journal — manuell erfassen</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Ticker</label>
+          <input type="text" id="j-ticker" placeholder="z.B. KSPI" style="text-transform:uppercase" />
+        </div>
+        <div class="field">
+          <label>Datum</label>
+          <input type="date" id="j-date" />
+        </div>
+        <div class="field">
+          <label>Einstiegspreis ($)</label>
+          <input type="number" id="j-entry" placeholder="z.B. 85.20" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Ausstiegspreis ($)</label>
+          <input type="number" id="j-exit" placeholder="z.B. 92.50 (leer = noch offen)" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Stop-Loss ($)</label>
+          <input type="number" id="j-stop" placeholder="z.B. 80.09" step="0.01" />
+        </div>
+        <div class="field">
+          <label>Position (€)</label>
+          <input type="number" id="j-position" placeholder="z.B. 1000" step="10" />
+        </div>
+        <div class="field">
+          <label>Typ</label>
+          <select id="j-type">
+            <option value="Typ-A">Typ-A Miss</option>
+            <option value="Beat">Beat + Situation 1</option>
+            <option value="Offen">Noch offen</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ergebnis</label>
+          <select id="j-result">
+            <option value="">— ausstehend —</option>
+            <option value="Gewinn">Gewinn ✅</option>
+            <option value="Verlust">Verlust ❌</option>
+            <option value="Stop-Loss">Stop-Loss ⚠️</option>
+            <option value="Offen">Noch offen</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notizen / Lektion</label>
+        <textarea id="j-notes" placeholder="z.B. Situation 1 perfekt erkannt, aber zu früh verkauft..."></textarea>
+      </div>
+      <button class="btn btn-dark" onclick="saveJournal()">📓 Trade speichern</button>
+    </div>
+
+    <div id="journalStats" style="margin-bottom:1rem"></div>
+    <div id="journalList"></div>
+  </div>
+
+</div>
+
+<script>
+const SYSTEM_PROMPT = `Du bist ein präziser Earnings Trade Assistent. Du kennst diese Strategie exakt:
+
+DREI BEDINGUNGEN (ALLE müssen erfüllt sein):
+1. KGV fair/günstig: Forward KGV unter ~25. Forward < Trailing = Gewinne wachsen = gut.
+2. Kurs unter Analysten-Ziel: Mindestens +10-15% Upside.
+3. Beat klar operativ: Aus dem Kerngeschäft — nicht FX, buchhalterische Einmaleffekte oder Mark-to-Market.
+
+TYP-A MISS: Zahlen verfehlen Konsens leicht, aber operative Story intakt, Drop ist algorithmisch/buchhalterisch. Erholung 4-8 Wochen. → KAUFEN bei Situation 1.
+TYP-B MISS: Guidance gesenkt, strukturelle Probleme → KEIN KAUF.
+BEAT: Aktie steigt → nichts tun.
+
+SITUATION 1 (bevorzugt): Spike bei Open → Dip unter Vortag → Stabilisierung = Kaufsignal.
+SITUATION 2: Direkter Fall ohne Spike = vorsichtiger, kleinere Position, engerer Stop-Loss.
+
+STOP-LOSS: Standard -6%, defensiv -5%, hohes Beta -8%.
+POSITION: Klarer Typ-A günstig = voll. Gemischt = 50-75%. Grauzone = 30-50%.
+
+UNGÜLTIGKEITSFAKTOREN: M&A/Übernahme, externer struktureller Schock (Iran-Deal = Ölpreis), extreme Illiquidität nach 90 Min., Management nennt strukturelle Probleme.
+
+BMO bevorzugt gegenüber AMC.
+
+REFERENZ-TRADES:
+- Tyson Foods: perfekter Typ-A, Situation 1, Spike→Dip→Erholung gleicher Tag
+- FOX Q3 2026: GAAP EPS -63% (buchhalterisch) vs Adj. EPS ~+30% Beat = Typ-A
+- KSPI Q1 2026: KGV 8, GMV +41%, Net Income -1% durch Türkiye-Integration = Typ-A
+- ENB Q1 2026: GAAP -26% durch Derivate (buchhalterisch) = Typ-A, keine vollständige Tages-Erholung
+- TRGP Q1 2026: Record EBITDA, Revenue Miss buchhalterisch (Commodity-Preise) = Typ-A
+- Disney Q2 2026: klarer Beat, Beat→nichts tun
+- CVE: Iran-Deal = Ölpreis-Schock = Typ-B, eliminiert
+- TM Toyota: FY2027 Guidance -35% unter Konsens wegen Zöllen = Typ-B
+
+Antworte auf Deutsch. Kurz und präzise. Keine langen Erklärungen ausser wenn explizit gefragt. Bei Kaufempfehlungen immer Positionsgrösse und Stop-Loss erwähnen. Keine Anlageberatung — immer kurzen Disclaimer.`;
+
+let konsensData = JSON.parse(localStorage.getItem('earningsKonsens') || '[]');
+let journalData = JSON.parse(localStorage.getItem('earningsJournal') || '[]');
+let chatHistory = [];
+let lastVergleichMsg = '';
+
+// Init
+window.onload = () => {
+  const savedKey = localStorage.getItem('earningsApiKey');
+  if(savedKey) {
+    document.getElementById('apiKey').value = savedKey;
+    document.getElementById('apiStatus').textContent = '✓ gespeichert';
+    document.getElementById('apiStatus').style.color = '#2e7d32';
+  }
+  renderKonsensList();
+  renderJournal();
+  populateVergleichDropdown();
+  document.getElementById('j-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('k-date').value = new Date().toISOString().split('T')[0];
+};
+
+function saveApiKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  if(key.startsWith('sk-ant-')) {
+    localStorage.setItem('earningsApiKey', key);
+    document.getElementById('apiStatus').textContent = '✓ gespeichert';
+    document.getElementById('apiStatus').style.color = '#2e7d32';
+  }
+}
+
+function switchTab(name) {
+  const tabs = ['screening','konsens','vergleich','chat','journal'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if(name === 'vergleich') populateVergleichDropdown();
+  if(name === 'chat') {
+    const key = document.getElementById('apiKey').value;
+    document.getElementById('apiWarning').style.display = !key ? 'flex' : 'none';
+  }
+}
+
+// SCREENING
+async function fetchYahoo(ticker) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=defaultKeyStatistics,financialData,summaryDetail`;
+    const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const d = await r.json();
+    const parsed = JSON.parse(d.contents);
+    const res = parsed.quoteSummary.result[0];
+    return {
+      fwdPE: res.financialData?.forwardPE?.raw || null,
+      trailPE: res.defaultKeyStatistics?.trailingPE?.raw || null,
+      price: res.financialData?.currentPrice?.raw || null,
+      target: res.financialData?.targetMeanPrice?.raw || null
+    };
+  } catch(e) { return null; }
+}
+
+async function runScreening() {
+  const val = document.getElementById('tickerInput').value;
+  const tickers = val.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+  if(!tickers.length) return;
+  const res = document.getElementById('screeningResults');
+  res.innerHTML = `<div class="loading"><span class="spinner"></span>Daten werden geladen für ${tickers.length} Ticker...</div>`;
+
+  let rows = '';
+  for(const t of tickers) {
+    const d = await fetchYahoo(t);
+    if(!d || !d.price) {
+      rows += `<tr><td><strong>${t}</strong></td><td colspan="5" style="color:#888;font-style:italic">Keine Daten verfügbar — manuell prüfen</td><td><span class="badge badge-gray">⚠ Prüfen</span></td></tr>`;
+      continue;
+    }
+    const fwd = d.fwdPE?.toFixed(1) || '—';
+    const trail = d.trailPE?.toFixed(1) || '—';
+    const price = d.price ? '$' + d.price.toFixed(2) : '—';
+    const target = d.target ? '$' + d.target.toFixed(2) : '—';
+    const upside = d.target && d.price ? ((d.target - d.price) / d.price * 100) : null;
+    const upsideStr = upside ? (upside > 0 ? '+' : '') + upside.toFixed(1) + '%' : '—';
+    const kgvOk = d.fwdPE && d.fwdPE < 25;
+    const upsideOk = upside && upside >= 10;
+    const fwdLower = d.fwdPE && d.trailPE && d.fwdPE < d.trailPE;
+    let badge, dot;
+    if(kgvOk && upsideOk) { badge = 'badge-green'; dot = 'dot-green'; }
+    else if(kgvOk || upsideOk) { badge = 'badge-amber'; dot = 'dot-amber'; }
+    else { badge = 'badge-red'; dot = 'dot-red'; }
+    const upsideColor = upside > 15 ? '#2e7d32' : upside > 0 ? '#e65100' : '#c62828';
+    const kgvTrend = fwdLower ? ' ↓' : (d.fwdPE && d.trailPE ? ' ↑' : '');
+    rows += `<tr>
+      <td><strong>${t}</strong></td>
+      <td>${trail} / <strong>${fwd}${kgvTrend}</strong></td>
+      <td>${price}</td>
+      <td>${target}</td>
+      <td style="color:${upsideColor};font-weight:600">${upsideStr}</td>
+      <td>${kgvOk ? '✅' : '❌'} KGV &nbsp; ${upsideOk ? '✅' : '❌'} Upside</td>
+      <td><span class="badge ${badge}"><span class="status-dot ${dot}"></span>${kgvOk && upsideOk ? 'Qualifiziert' : kgvOk || upsideOk ? 'Grauzone' : 'Nicht qual.'}</span></td>
+    </tr>`;
+  }
+
+  res.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
+    <table class="screening-table">
+      <thead><tr>
+        <th>Ticker</th><th>KGV trail./fwd.</th><th>Kurs</th><th>Ziel</th><th>Upside</th><th>Bedingungen</th><th>Status</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function clearScreening() {
+  document.getElementById('tickerInput').value = '';
+  document.getElementById('screeningResults').innerHTML = '';
+}
+
+// KONSENS
+function saveKonsens() {
+  const entry = {
+    id: Date.now(),
+    ticker: document.getElementById('k-ticker').value.toUpperCase().trim(),
+    timing: document.getElementById('k-timing').value,
+    eps: document.getElementById('k-eps').value,
+    rev: document.getElementById('k-rev').value,
+    date: document.getElementById('k-date').value,
+    sektor: document.getElementById('k-sektor').value,
+    metrik: document.getElementById('k-metrik').value,
+    typa: document.getElementById('k-typa').value,
+    typb: document.getElementById('k-typb').value,
+  };
+  if(!entry.ticker) { alert('Bitte Ticker eingeben.'); return; }
+  konsensData = konsensData.filter(k => k.ticker !== entry.ticker);
+  konsensData.unshift(entry);
+  localStorage.setItem('earningsKonsens', JSON.stringify(konsensData));
+  renderKonsensList();
+  populateVergleichDropdown();
+  ['k-ticker','k-eps','k-rev','k-metrik','k-typa','k-typb'].forEach(id => document.getElementById(id).value = '');
+  alert(`✅ Konsens für ${entry.ticker} gespeichert.`);
+}
+
+function deleteKonsens(ticker) {
+  konsensData = konsensData.filter(k => k.ticker !== ticker);
+  localStorage.setItem('earningsKonsens', JSON.stringify(konsensData));
+  renderKonsensList();
+  populateVergleichDropdown();
+}
+
+function renderKonsensList() {
+  const el = document.getElementById('konsensList');
+  if(!konsensData.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>Noch keine Konsens-Daten gespeichert.</div>';
+    return;
+  }
+  el.innerHTML = konsensData.map(k => `
+    <div class="konsens-item">
+      <div class="konsens-header">
+        <div>
+          <span class="konsens-ticker">${k.ticker}</span>
+          <span class="badge badge-blue" style="margin-left:8px">${k.timing}</span>
+          ${k.sektor ? `<span class="badge badge-gray" style="margin-left:4px">${k.sektor}</span>` : ''}
+          ${k.date ? `<span style="font-size:12px;color:#888;margin-left:8px">${k.date}</span>` : ''}
+        </div>
+        <button class="btn btn-sm" onclick="deleteKonsens('${k.ticker}')" style="color:#888">✕</button>
+      </div>
+      <div class="grid-2" style="margin-bottom:10px">
+        <div class="metric">
+          <div class="metric-label">EPS Konsens</div>
+          <div class="metric-value" style="font-size:18px">$${k.eps}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Revenue Konsens</div>
+          <div class="metric-value" style="font-size:18px">$${k.rev}B</div>
+        </div>
+      </div>
+      ${k.metrik ? `<div style="font-size:13px;color:#555;margin-bottom:6px"><strong>🎯 Wichtigste Metrik:</strong> ${k.metrik}</div>` : ''}
+      <div class="signal-row"><span class="status-dot dot-green"></span><span style="font-size:13px"><strong>Typ-A:</strong> ${k.typa}</span></div>
+      <div class="signal-row" style="margin-top:4px"><span class="status-dot dot-red"></span><span style="font-size:13px"><strong>Typ-B:</strong> ${k.typb}</span></div>
+    </div>`).join('');
+}
+
+// VERGLEICH
+function populateVergleichDropdown() {
+  const sel = document.getElementById('v-ticker');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Ticker wählen —</option>';
+  konsensData.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k.ticker;
+    opt.textContent = `${k.ticker} (${k.timing} | EPS $${k.eps})`;
+    sel.appendChild(opt);
+  });
+  if(cur) sel.value = cur;
+}
+
+function loadKonsensForVergleich() {
+  const ticker = document.getElementById('v-ticker').value;
+  const k = konsensData.find(x => x.ticker === ticker);
+  const preview = document.getElementById('k-preview');
+  if(k) {
+    preview.style.display = 'block';
+    preview.innerHTML = `<strong>${k.ticker}</strong> — EPS Konsens: <strong>$${k.eps}</strong> | Revenue: <strong>$${k.rev}B</strong> | ${k.timing}<br>
+    <span style="color:#2e7d32">✅ Typ-A: ${k.typa}</span><br>
+    <span style="color:#c62828">❌ Typ-B: ${k.typb}</span>`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function runVergleich() {
+  const ticker = document.getElementById('v-ticker').value;
+  const k = konsensData.find(x => x.ticker === ticker);
+  if(!k) { alert('Bitte zuerst im Konsens-Tab Daten erfassen.'); return; }
+
+  const actEps = parseFloat(document.getElementById('v-eps').value);
+  const actRev = parseFloat(document.getElementById('v-rev').value);
+  const premarket = parseFloat(document.getElementById('v-premarket').value);
+  const kontext = document.getElementById('v-kontext').value.trim();
+  const epsKons = parseFloat(k.eps);
+  const revKons = parseFloat(k.rev);
+  const epsDiff = ((actEps - epsKons) / epsKons * 100);
+  const revDiff = ((actRev - revKons) / revKons * 100);
+  const epsBeat = !isNaN(epsDiff) && epsDiff >= 0;
+  const revBeat = !isNaN(revDiff) && revDiff >= 0;
+
+  let signal, signalClass, signalEmoji;
+  if(!isNaN(epsDiff) && !isNaN(revDiff) && epsBeat && revBeat) {
+    signal = 'Beat — nichts tun'; signalClass = 'badge-blue'; signalEmoji = '📈';
+  } else if((!isNaN(epsDiff) && epsDiff < -15) || (!isNaN(revDiff) && revDiff < -8)) {
+    signal = 'Potenziell Typ-B — vorsicht!'; signalClass = 'badge-red'; signalEmoji = '🚨';
+  } else {
+    signal = 'Potenziell Typ-A — analysieren'; signalClass = 'badge-amber'; signalEmoji = '⚠️';
+  }
+
+  const pmSign = premarket > 0 ? '+' : '';
+  const pmColor = premarket > 0 ? '#2e7d32' : '#c62828';
+
+  const epsStr = !isNaN(epsDiff) ? `<span class="${epsBeat ? 'diff-positive' : 'diff-negative'}">${epsBeat?'+':''}${epsDiff.toFixed(1)}%</span>` : '<span class="diff-neutral">—</span>';
+  const revStr = !isNaN(revDiff) ? `<span class="${revBeat ? 'diff-positive' : 'diff-negative'}">${revBeat?'+':''}${revDiff.toFixed(1)}%</span>` : '<span class="diff-neutral">—</span>';
+
+  const result = document.getElementById('vergleichResult');
+  result.innerHTML = `<div class="vergleich-result">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div style="font-size:16px;font-weight:600">${ticker} — Analyse</div>
+      <span class="badge ${signalClass}" style="font-size:13px;padding:5px 12px">${signalEmoji} ${signal}</span>
+    </div>
+    <div class="grid-4" style="margin-bottom:1rem">
+      <div class="metric">
+        <div class="metric-label">EPS Abweichung</div>
+        <div class="metric-value" style="font-size:20px">${epsStr}</div>
+        <div class="metric-sub">Kons. $${k.eps} → Tat. $${isNaN(actEps)?'—':actEps.toFixed(2)}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Revenue Abweichung</div>
+        <div class="metric-value" style="font-size:20px">${revStr}</div>
+        <div class="metric-sub">Kons. $${k.rev}B → Tat. $${isNaN(actRev)?'—':actRev.toFixed(2)}B</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Premarket</div>
+        <div class="metric-value" style="font-size:20px;color:${pmColor}">${isNaN(premarket)?'—':pmSign+premarket.toFixed(1)+'%'}</div>
+        <div class="metric-sub">${k.timing} Release</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Typ-A-Kriterium</div>
+        <div class="metric-value" style="font-size:13px;font-weight:400;color:#555;margin-top:2px">${k.typa.substring(0,60)}${k.typa.length>60?'...':''}</div>
+      </div>
+    </div>
+    ${kontext ? `<div style="padding:10px 14px;background:#f9f9f6;border-radius:8px;font-size:13px;color:#555;margin-bottom:12px"><strong>📝 Kontext:</strong> ${kontext}</div>` : ''}
+    <div style="font-size:12px;color:#888;padding:8px;background:#fff8e1;border-radius:6px;margin-bottom:12px">
+      ⚠️ Keine Anlageberatung. Eigene Due Diligence erforderlich.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="sendVergleichToChat()">💬 Im Chat vertiefen →</button>
+      <button class="btn" onclick="saveToJournal()">📓 In Journal speichern</button>
+    </div>
+  </div>`;
+
+  lastVergleichMsg = `Analysiere ${ticker}: EPS-Abweichung ${isNaN(epsDiff)?'unbekannt':(epsBeat?'+':'')+epsDiff.toFixed(1)+'%'}, Revenue ${isNaN(revDiff)?'unbekannt':(revBeat?'+':'')+revDiff.toFixed(1)+'%'}, Premarket ${isNaN(premarket)?'unbekannt':pmSign+premarket.toFixed(1)+'%'}. Typ-A-Signal: "${k.typa}". Typ-B-Signal: "${k.typb}". Kontext: ${kontext||'keiner'}. Signal ist "${signal}". Ist das Typ-A, Typ-B oder Beat? Soll ich kaufen?`;
+}
+
+function sendVergleichToChat() {
+  if(!lastVergleichMsg) { alert('Bitte zuerst eine Analyse durchführen.'); return; }
+  switchTab('chat');
+  document.getElementById('chatInput').value = lastVergleichMsg;
+  sendChat();
+}
+
+function saveToJournal() {
+  const ticker = document.getElementById('v-ticker').value;
+  if(!ticker) return;
+  switchTab('journal');
+  document.getElementById('j-ticker').value = ticker;
+  document.getElementById('j-date').value = new Date().toISOString().split('T')[0];
+}
+
+// CHAT
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if(!msg) return;
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if(!apiKey) {
+    document.getElementById('apiWarning').style.display = 'flex';
+    return;
+  }
+  document.getElementById('apiWarning').style.display = 'none';
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML += `<div class="msg msg-user">${msg.replace(/</g,'&lt;')}</div>`;
+  input.value = '';
+  const loadEl = document.createElement('div');
+  loadEl.className = 'msg msg-ai msg-typing';
+  loadEl.textContent = '⏳ Wird analysiert...';
+  msgs.appendChild(loadEl);
+  msgs.scrollTop = msgs.scrollHeight;
+  chatHistory.push({role:'user',content:msg});
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,system:SYSTEM_PROMPT,messages:chatHistory})
+    });
+    const data = await r.json();
+    if(data.error) { loadEl.textContent = '❌ Fehler: ' + data.error.message; return; }
+    const reply = data.content?.[0]?.text || 'Keine Antwort erhalten.';
+    chatHistory.push({role:'assistant',content:reply});
+    loadEl.className = 'msg msg-ai';
+    loadEl.innerHTML = reply.replace(/\n/g,'<br>');
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e) {
+    loadEl.textContent = '❌ Verbindungsfehler: ' + e.message;
+  }
+}
+
+function clearChat() {
+  chatHistory = [];
+  document.getElementById('chatMessages').innerHTML = `<div class="msg msg-ai">Chat geleert. Stelle mir eine neue Frage.</div>`;
+}
+
+// JOURNAL
+function saveJournal() {
+  const entry = {
+    id: Date.now(),
+    ticker: document.getElementById('j-ticker').value.toUpperCase().trim(),
+    date: document.getElementById('j-date').value,
+    entry: document.getElementById('j-entry').value,
+    exit: document.getElementById('j-exit').value,
+    stop: document.getElementById('j-stop').value,
+    position: document.getElementById('j-position').value,
+    type: document.getElementById('j-type').value,
+    result: document.getElementById('j-result').value || 'Offen',
+    notes: document.getElementById('j-notes').value
+  };
+  if(!entry.ticker) { alert('Bitte Ticker eingeben.'); return; }
+  journalData.unshift(entry);
+  localStorage.setItem('earningsJournal', JSON.stringify(journalData));
+  renderJournal();
+  ['j-ticker','j-entry','j-exit','j-stop','j-position','j-notes'].forEach(id => document.getElementById(id).value = '');
+  alert(`✅ Trade ${entry.ticker} gespeichert.`);
+}
+
+function deleteJournal(id) {
+  journalData = journalData.filter(j => j.id !== id);
+  localStorage.setItem('earningsJournal', JSON.stringify(journalData));
+  renderJournal();
+}
+
+function renderJournal() {
+  const statsEl = document.getElementById('journalStats');
+  const listEl = document.getElementById('journalList');
+  if(!journalData.length) {
+    statsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📓</div>Noch keine Trades erfasst.</div>';
+    return;
+  }
+  const closed = journalData.filter(j => j.exit && j.result !== 'Offen');
+  const wins = closed.filter(j => j.result === 'Gewinn').length;
+  const losses = closed.filter(j => j.result === 'Verlust' || j.result === 'Stop-Loss').length;
+  const winRate = closed.length ? (wins / closed.length * 100).toFixed(0) : '—';
+  statsEl.innerHTML = `<div class="grid-4" style="margin-bottom:1rem">
+    <div class="metric"><div class="metric-label">Trades total</div><div class="metric-value">${journalData.length}</div></div>
+    <div class="metric"><div class="metric-label">Abgeschlossen</div><div class="metric-value">${closed.length}</div></div>
+    <div class="metric"><div class="metric-label">Win Rate</div><div class="metric-value" style="color:${winRate>50?'#2e7d32':'#c62828'}">${winRate}%</div></div>
+    <div class="metric"><div class="metric-label">Gewinn / Verlust</div><div class="metric-value">${wins} / ${losses}</div></div>
+  </div>`;
+
+  const rows = journalData.map(j => {
+    const pnl = j.entry && j.exit ? ((parseFloat(j.exit) - parseFloat(j.entry)) / parseFloat(j.entry) * 100) : null;
+    const pnlStr = pnl ? `<span class="${pnl>0?'diff-positive':'diff-negative'}">${pnl>0?'+':''}${pnl.toFixed(1)}%</span>` : '—';
+    const resultBadge = j.result === 'Gewinn' ? 'badge-green' : j.result === 'Verlust' || j.result === 'Stop-Loss' ? 'badge-red' : 'badge-gray';
+    return `<tr>
+      <td><strong>${j.ticker}</strong></td>
+      <td>${j.date}</td>
+      <td><span class="badge badge-blue">${j.type}</span></td>
+      <td>$${j.entry||'—'}</td>
+      <td>$${j.exit||'—'}</td>
+      <td>$${j.stop||'—'}</td>
+      <td>${pnlStr}</td>
+      <td><span class="badge ${resultBadge}">${j.result}</span></td>
+      <td style="font-size:12px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.notes||''}</td>
+      <td><button class="btn btn-sm" onclick="deleteJournal(${j.id})" style="color:#888">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  listEl.innerHTML = `<div class="card" style="padding:0;overflow:auto">
+    <table class="trade-journal">
+      <thead><tr>
+        <th>Ticker</th><th>Datum</th><th>Typ</th><th>Einstieg</th><th>Ausstieg</th><th>Stop-Loss</th><th>P&L</th><th>Ergebnis</th><th>Notizen</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+</script>
+</body>
+</html>
